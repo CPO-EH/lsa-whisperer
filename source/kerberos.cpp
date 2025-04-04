@@ -6,7 +6,7 @@
 #include <iostream>
 #include <kerberos.hpp>
 #include <lsa.hpp>
-#include <magic_enum.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include <string>
 
 namespace {
@@ -90,6 +90,13 @@ namespace Kerberos {
         KERB_CLEANUP_MACHINE_PKINIT_CREDS_REQUEST request = { static_cast<KERB_PROTOCOL_MESSAGE_TYPE>(PROTOCOL_MESSAGE_TYPE::CleanupMachinePkinitCreds) };
         request.LogonId.LowPart = luid->LowPart;
         request.LogonId.HighPart = luid->HighPart;
+        void* response{ nullptr };
+        return CallPackage(request, &response);
+    }
+
+    bool Proxy::NlChangeMachinePassword(bool impersonating) const {
+        CHANGEMACHINEPASSWORD_REQUEST request;
+        request.Impersonating = impersonating;
         void* response{ nullptr };
         return CallPackage(request, &response);
     }

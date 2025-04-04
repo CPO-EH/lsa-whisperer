@@ -1,0 +1,64 @@
+name: Build LSA Whisperer
+on:
+  workflow_dispatch: # Allows you to manually run the workflow
+  push: # Run when code changes
+    branches: ['master']
+    paths: ['cmake/**', 'include/**', 'libraries/**', 'source/**', 'CMakeList.txt']
+  schedule: # Run on first day of every month
+    - cron: "0 0 1 * *"
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      artifact: lsa-whisperer-${{ steps.ghd.outputs.describe }}
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Prepare the build
+      run: cmake .. -A x64 -DCMAKE_SYSTEM_VERSION=10.0.22621.0
+      working-directory: builds
+    - name: Run the build
+      run: cmake --build .
+      working-directory: builds
+    - name: Generate description for artifact name
+      id: ghd
+      uses: proudust/gh-describe@v2
+      with:
+        match: v*
+    - name: Upload artifact to workflow run
+      uses: actions/upload-artifact@v4
+      with:
+        name: lsa-whisperer-${{ steps.ghd.outputs.describe }}
+        path: builds/Debug/**
+  deploy: # Reupload artifacts to a GitHub release to allow them to be downloaded unauthenticated
+    environment:
+      name: github-artifacts
+      url: https://github.com/EvanMcBroom/lsa-whisperer/releases/tag/latest
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Download artifact from workflow run
+      uses: actions/download-artifact@master
+      with:
+        name: ${{ needs.build.outputs.artifact }}
+        path: artifact-files
+    - name: Archive artifacts
+      uses: vimtor/action-zip@v1.2
+      with:
+        files: artifact-files/
+        dest: ${{ needs.build.outputs.artifact }}.zip
+    - name: Delete the existing GitHub release so it does not get bloated with old artifacts
+      uses: larryjoelane/delete-release-action@v1.0.24
+      with:
+          release-name: latest
+          token: ${{ secrets.GH_TOKEN }}
+    - name: Recreate the GitHub release and upload the new artifact to it
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        body: Source code and build artifacts from the last run of the project's [build workflow](https://github.com/EvanMcBroom/lsa-whisperer/actions/workflows/build.yml?query=is%3Asuccess).
+        files: ${{ needs.build.outputs.artifact }}.zip
+        fail_on_unmatched_files: true
+
